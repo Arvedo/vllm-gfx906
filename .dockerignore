@@ -34,5 +34,27 @@ MANIFEST
 
 # VCS / local caches / large local model dirs
 .git
+.git/**
 .cache
+.cache/**
 models
+models/**
+
+# Not required for runtime image build/install
+tests/
+benchmarks/
+docs/
+examples/
+.github/
+.github.orig/
+.buildkite/
+.gemini/
+
+# Local/dev tooling artifacts
+.pytest_cache/
+.ruff_cache/
+.tox/
+.nox/
+.ipynb_checkpoints/
+.vscode/
+.idea/

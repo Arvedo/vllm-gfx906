@@ -115,6 +115,12 @@ This works without exporting variables and uses MI50 defaults from `docker-compo
 - `HIP_VISIBLE_DEVICES=4,5`
 - tensor parallel size: `2`
 
+If the first `docker-compose up -d --build vllm-mi50` appears stuck, it is usually still building (legacy v1 builder can be very slow on first build). After the first successful image build, start without rebuild:
+
+```bash
+docker-compose up -d vllm-mi50
+```
+
 One-time cleanup for older `docker-compose` v1 `ContainerConfig` recreate bug:
 
 ```bash
