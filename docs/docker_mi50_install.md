@@ -129,6 +129,14 @@ One-time cleanup for older `docker-compose` v1 `ContainerConfig` recreate bug:
 docker-compose down --remove-orphans && docker-compose rm -f vllm-mi50
 ```
 
+Runtime note: the Compose service starts vLLM via `python3`/`vllm` (not `python`).
+
+After this fix, restart the service with:
+
+```bash
+docker compose up -d --force-recreate vllm-mi50
+```
+
 ## Runtime defaults set in Dockerfile
 
 `docker/Dockerfile.rocm.mi50` sets conservative defaults for gfx906 safety:
