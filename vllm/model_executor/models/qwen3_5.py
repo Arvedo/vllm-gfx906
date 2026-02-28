@@ -49,18 +49,25 @@ from vllm.model_executor.layers.mamba.mamba_utils import (
     MambaStateShapeCalculator,
 )
 
-from vllm.model_executor.layers.mamba import mamba_utils as _mamba_utils
 
-MambaStateCopyFunc = getattr(
-    _mamba_utils,
-    "MambaStateCopyFunc",
-    Callable[..., None],
-)
-MambaStateCopyFuncCalculator = getattr(
-    _mamba_utils,
-    "MambaStateCopyFuncCalculator",
-    None,
-)
+def _noop_mamba_state_copy(*args, **kwargs) -> None:
+    return None
+
+
+try:
+    from vllm.model_executor.layers.mamba.mamba_utils import (
+        MambaStateCopyFunc,
+        MambaStateCopyFuncCalculator,
+    )
+except ImportError:
+    MambaStateCopyFunc = Callable[..., None]
+
+    class MambaStateCopyFuncCalculator:
+        @classmethod
+        def gated_delta_net_state_copy_func(
+            cls,
+        ) -> tuple[MambaStateCopyFunc, MambaStateCopyFunc]:
+            return _noop_mamba_state_copy, _noop_mamba_state_copy
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
@@ -792,19 +799,14 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
 
     @classmethod
     def get_mamba_state_copy_func(cls) -> tuple[MambaStateCopyFunc, MambaStateCopyFunc]:
-        if MambaStateCopyFuncCalculator is not None:
-            return MambaStateCopyFuncCalculator.gated_delta_net_state_copy_func()
-
-        logger.warning_once(
-            "MambaStateCopyFuncCalculator is unavailable in mamba_utils; "
-            "falling back to no-op mamba state copy functions for runtime "
-            "compatibility."
-        )
-
-        def _noop_state_copy(*args, **kwargs) -> None:
-            return None
-
-        return _noop_state_copy, _noop_state_copy
+        copy_funcs = MambaStateCopyFuncCalculator.gated_delta_net_state_copy_func()
+        if MambaStateCopyFuncCalculator.__module__ == __name__:
+            logger.warning_once(
+                "MambaStateCopyFuncCalculator is unavailable in mamba_utils; "
+                "using local no-op mamba state copy functions for runtime "
+                "compatibility."
+            )
+        return copy_funcs
 
 
 ########################################################

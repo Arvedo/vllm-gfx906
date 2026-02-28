@@ -53,10 +53,16 @@ def test_qwen35_import_with_missing_mamba_copy_symbols(monkeypatch):
 
     qwen35_module = importlib.import_module("vllm.model_executor.models.qwen3_5")
 
+    # Import must succeed even if the copy symbols are absent in mamba_utils.
+    assert qwen35_module is not None
+
     copy_funcs = qwen35_module.Qwen3_5ForConditionalGeneration.get_mamba_state_copy_func()
     assert len(copy_funcs) == 2
     assert all(callable(fn) for fn in copy_funcs)
 
+    # Confirm fallback path is used from qwen3_5 local compatibility shim.
+    assert qwen35_module.MambaStateCopyFuncCalculator.__module__ == qwen35_module.__name__
+
     # Fallback copy funcs must be no-op callables, even with arbitrary args.
-    copy_funcs[0](object(), object())
-    copy_funcs[1](state=None, cache=None)
+    assert copy_funcs[0](object(), object()) is None
+    assert copy_funcs[1](state=None, cache=None) is None
