@@ -55,5 +55,6 @@ This update changes dependency declarations only (no Dockerfile or runtime code 
 ## Runtime compatibility note (Transformers 5.2)
 
 - Added a minimal runtime compatibility fallback in `vllm/config/model.py` for `ALLOWED_LAYER_TYPES` import changes in Transformers 5.2+.
+- Added the same compatibility import fallback in `vllm/transformers_utils/config.py` (second fix location) to avoid import-time failure in RoPE patching paths.
 - Behavior: if `transformers.configuration_utils.ALLOWED_LAYER_TYPES` is unavailable, vLLM now avoids import-time failure and falls back to a shape-based rope parameter check (expects per-layer entries to be dicts containing `rope_type`).
 - Validation intent is preserved by still normalizing non-layer-typed `rope_parameters` into the single-entry form used by max-length verification logic.

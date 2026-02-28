@@ -15,7 +15,10 @@ from huggingface_hub import (
 )
 from packaging.version import Version
 from transformers import GenerationConfig, PretrainedConfig
-from transformers.configuration_utils import ALLOWED_LAYER_TYPES
+try:
+    from transformers.configuration_utils import ALLOWED_LAYER_TYPES
+except ImportError:
+    ALLOWED_LAYER_TYPES = None
 from transformers.models.auto.image_processing_auto import get_image_processor_config
 from transformers.models.auto.modeling_auto import (
     MODEL_FOR_CAUSAL_LM_MAPPING_NAMES,
@@ -300,7 +303,24 @@ def set_default_rope_theta(config: PretrainedConfig, default_theta: float) -> No
         config.rope_parameters["rope_theta"] = default_theta
 
 
-def patch_rope_parameters(config: PretrainedConfig) -> None:
+ def _rope_parameters_are_layer_typed(rope_parameters: Any) -> bool:
+    """Return whether rope_parameters is in layer-typed dict form."""
+    if not isinstance(rope_parameters, dict) or not rope_parameters:
+        return False
+
+    if ALLOWED_LAYER_TYPES is not None:
+        return set(rope_parameters.keys()).issubset(ALLOWED_LAYER_TYPES)
+
+    # Transformers compatibility fallback when ALLOWED_LAYER_TYPES is absent.
+    # In layer-typed form, each value is expected to be a dict carrying
+    # a per-layer rope configuration.
+    return all(
+        isinstance(value, dict) and "rope_type" in value
+        for value in rope_parameters.values()
+    )
+
+
+ def patch_rope_parameters(config: PretrainedConfig) -> None:
     """Provide backwards compatibility for RoPE."""
     if Version(version("transformers")) < Version("5.0.0.dev0"):
         # Transformers v4 installed, legacy config fields may be present
@@ -320,7 +340,7 @@ def patch_rope_parameters(config: PretrainedConfig) -> None:
         config.rope_parameters["original_max_position_embeddings"] = ompe
 
     # Handle nested rope_parameters in interleaved sliding attention models
-    if set(config.rope_parameters.keys()).issubset(ALLOWED_LAYER_TYPES):
+    if _rope_parameters_are_layer_typed(config.rope_parameters):
         for rope_parameters_layer_type in config.rope_parameters.values():
             patch_rope_parameters_dict(rope_parameters_layer_type)
     else:
