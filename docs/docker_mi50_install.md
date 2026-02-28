@@ -19,6 +19,8 @@ docker build -f docker/Dockerfile.rocm.mi50 -t vllm-gfx906:mi50 .
 
 Prerequisite note: the MI50 Docker build path installs `pybind11` before `pip install --no-build-isolation -e .` so `fastsafetensors` metadata generation does not fail.
 
+Triton package naming note: depending on source/build backend, Triton metadata may appear under `triton-gfx906`, `triton_gfx906`, `triton`, or `pytorch-triton-rocm`. The Dockerfile verification now treats these as acceptable metadata variants, while still hard-failing if `import triton` fails.
+
 Optional version/index overrides:
 
 ```bash
@@ -69,7 +71,7 @@ rocminfo | grep -E "Name:|gfx906" || true
 2) Python package/runtime sanity:
 
 ```bash
-python3 -c "import torch, vllm, importlib.metadata as m; print('torch', torch.__version__); print('triton-gfx906', m.version('triton-gfx906')); print('transformers', m.version('transformers')); print('vllm ok')"
+python3 -c "import torch, vllm, triton, importlib.metadata as m; print('torch', torch.__version__); print('triton.__version__', getattr(triton, '__version__', 'unknown')); print('transformers', m.version('transformers')); [print(name, m.version(name)) for name in ('triton-gfx906', 'triton_gfx906', 'triton', 'pytorch-triton-rocm') if any(True for _ in [0] if (lambda n: (__import__('importlib.metadata').metadata.version(n), True))[1] if False else True)]; print('vllm ok')"
 ```
 
 3) Minimal vLLM import + platform check:

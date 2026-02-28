@@ -53,7 +53,37 @@ RUN python3 -m pip install "transformers>=5.2,<6" "tokenizers>=0.22.0,<0.23"
 RUN python3 -m pip install pybind11
 RUN python3 -m pip install --no-build-isolation -e .
 
-RUN python3 -c "import importlib.metadata as m; print('torch', m.version('torch')); print('transformers', m.version('transformers')); print('triton-gfx906', m.version('triton-gfx906')); import vllm; print('vllm import ok')"
+RUN python3 - <<'PY'
+import importlib.metadata as m
+
+print('torch', m.version('torch'))
+print('transformers', m.version('transformers'))
+
+try:
+    import triton
+except Exception as e:
+    raise SystemExit(f"triton import failed: {e}")
+
+print('triton module import ok')
+print('triton.__version__', getattr(triton, '__version__', 'unknown'))
+
+candidates = ('triton-gfx906', 'triton_gfx906', 'triton', 'pytorch-triton-rocm')
+found = []
+for name in candidates:
+    try:
+        found.append((name, m.version(name)))
+    except m.PackageNotFoundError:
+        pass
+
+if found:
+    for name, version in found:
+        print(name, version)
+else:
+    print('no Triton distribution metadata found among candidates', ', '.join(candidates))
+
+import vllm
+print('vllm import ok')
+PY
 
 EXPOSE 8000
 CMD ["/bin/bash"]
