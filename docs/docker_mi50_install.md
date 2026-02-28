@@ -71,7 +71,22 @@ rocminfo | grep -E "Name:|gfx906" || true
 2) Python package/runtime sanity:
 
 ```bash
-python3 -c "import torch, vllm, triton, importlib.metadata as m; print('torch', torch.__version__); print('triton.__version__', getattr(triton, '__version__', 'unknown')); print('transformers', m.version('transformers')); [print(name, m.version(name)) for name in ('triton-gfx906', 'triton_gfx906', 'triton', 'pytorch-triton-rocm') if any(True for _ in [0] if (lambda n: (__import__('importlib.metadata').metadata.version(n), True))[1] if False else True)]; print('vllm ok')"
+python3 - <<'PY'
+import importlib.metadata as m
+import torch
+import triton
+import vllm
+
+print('torch', torch.__version__)
+print('triton.__version__', getattr(triton, '__version__', 'unknown'))
+print('transformers', m.version('transformers'))
+for name in ('triton-gfx906', 'triton_gfx906', 'triton', 'pytorch-triton-rocm'):
+    try:
+        print(name, m.version(name))
+    except m.PackageNotFoundError:
+        pass
+print('vllm ok')
+PY
 ```
 
 3) Minimal vLLM import + platform check:
