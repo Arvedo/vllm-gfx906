@@ -24,6 +24,7 @@
 # limitations under the License.
 """Inference-only Qwen3.5 Series compatible with HuggingFace weights."""
 
+import inspect
 import typing
 from collections.abc import Callable, Iterable
 
@@ -781,10 +782,19 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
         cls,
         vllm_config: "VllmConfig",
     ) -> tuple[torch.dtype, torch.dtype]:
-        return MambaStateDtypeCalculator.gated_delta_net_state_dtype(
+        calculator = MambaStateDtypeCalculator.gated_delta_net_state_dtype
+        param_count = len(inspect.signature(calculator).parameters)
+
+        if param_count >= 3:
+            return calculator(
+                vllm_config.model_config.dtype,
+                vllm_config.cache_config.mamba_cache_dtype,
+                vllm_config.cache_config.mamba_ssm_cache_dtype,
+            )
+
+        return calculator(
             vllm_config.model_config.dtype,
             vllm_config.cache_config.mamba_cache_dtype,
-            vllm_config.cache_config.mamba_ssm_cache_dtype,
         )
 
     @classmethod

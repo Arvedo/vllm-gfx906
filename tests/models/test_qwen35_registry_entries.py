@@ -91,3 +91,80 @@ def test_qwen35_import_with_missing_require_is_multimodal(monkeypatch):
 
     mask = torch.tensor([True, False])
     assert torch.equal(required(mask), mask)
+
+
+def test_qwen35_mamba_state_dtype_compat_with_two_arg_calculator(monkeypatch):
+    import vllm.model_executor.models.qwen3_5 as qwen35_module
+
+    captured: dict[str, object] = {}
+
+    def _two_arg_dtype_calculator(cls, model_dtype, mamba_cache_dtype):
+        captured["model_dtype"] = model_dtype
+        captured["mamba_cache_dtype"] = mamba_cache_dtype
+        return (torch.float16, torch.float16)
+
+    monkeypatch.setattr(
+        qwen35_module.MambaStateDtypeCalculator,
+        "gated_delta_net_state_dtype",
+        classmethod(_two_arg_dtype_calculator),
+    )
+
+    vllm_config = types.SimpleNamespace(
+        model_config=types.SimpleNamespace(dtype=torch.bfloat16),
+        cache_config=types.SimpleNamespace(
+            mamba_cache_dtype="auto",
+            mamba_ssm_cache_dtype="float32",
+        ),
+    )
+
+    out = qwen35_module.Qwen3_5ForConditionalGeneration.get_mamba_state_dtype_from_config(
+        vllm_config
+    )
+
+    assert out == (torch.float16, torch.float16)
+    assert captured == {
+        "model_dtype": torch.bfloat16,
+        "mamba_cache_dtype": "auto",
+    }
+
+
+def test_qwen35_mamba_state_dtype_compat_with_three_arg_calculator(monkeypatch):
+    import vllm.model_executor.models.qwen3_5 as qwen35_module
+
+    captured: dict[str, object] = {}
+
+    def _three_arg_dtype_calculator(
+        cls,
+        model_dtype,
+        mamba_cache_dtype,
+        mamba_ssm_cache_dtype,
+    ):
+        captured["model_dtype"] = model_dtype
+        captured["mamba_cache_dtype"] = mamba_cache_dtype
+        captured["mamba_ssm_cache_dtype"] = mamba_ssm_cache_dtype
+        return (torch.bfloat16, torch.bfloat16)
+
+    monkeypatch.setattr(
+        qwen35_module.MambaStateDtypeCalculator,
+        "gated_delta_net_state_dtype",
+        classmethod(_three_arg_dtype_calculator),
+    )
+
+    vllm_config = types.SimpleNamespace(
+        model_config=types.SimpleNamespace(dtype=torch.float16),
+        cache_config=types.SimpleNamespace(
+            mamba_cache_dtype="auto",
+            mamba_ssm_cache_dtype="float32",
+        ),
+    )
+
+    out = qwen35_module.Qwen3_5ForConditionalGeneration.get_mamba_state_dtype_from_config(
+        vllm_config
+    )
+
+    assert out == (torch.bfloat16, torch.bfloat16)
+    assert captured == {
+        "model_dtype": torch.float16,
+        "mamba_cache_dtype": "auto",
+        "mamba_ssm_cache_dtype": "float32",
+    }
