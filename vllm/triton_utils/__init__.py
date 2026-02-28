@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from vllm.triton_utils.importing import (
     HAS_TRITON,
+    TRITON_IS_GFX906_VARIANT,
     TritonLanguagePlaceholder,
     TritonPlaceholder,
 )
@@ -17,4 +18,4 @@ else:
     tl = TritonLanguagePlaceholder()
     tldevice = TritonLanguagePlaceholder()
 
-__all__ = ["HAS_TRITON", "triton", "tl", "tldevice"]
+__all__ = ["HAS_TRITON", "TRITON_IS_GFX906_VARIANT", "triton", "tl", "tldevice"]

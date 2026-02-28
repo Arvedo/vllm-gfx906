@@ -3,66 +3,106 @@
 
 import os
 import types
+from importlib.metadata import (
+    PackageNotFoundError,
+    version as get_distribution_version,
+)
 from importlib.util import find_spec
 
 from vllm.logger import init_logger
 
 logger = init_logger(__name__)
 
-HAS_TRITON = (
-    find_spec("triton") is not None
-    or find_spec("pytorch-triton-xpu") is not None  # Not compatible
-)
-if HAS_TRITON:
+
+def _has_module(module_name: str) -> bool:
+    return find_spec(module_name) is not None
+
+
+def _has_distribution(dist_name: str) -> bool:
     try:
-        from triton.backends import backends
+        get_distribution_version(dist_name)
+        return True
+    except PackageNotFoundError:
+        return False
+    except Exception:
+        return False
 
-        # It's generally expected that x.driver exists and has
-        # an is_active method.
-        # The `x.driver and` check adds a small layer of safety.
-        active_drivers = [
-            x.driver for x in backends.values() if x.driver and x.driver.is_active()
-        ]
 
-        # Check if we're in a distributed environment where CUDA_VISIBLE_DEVICES
-        # might be temporarily empty (e.g., Ray sets it to "" during actor init)
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-        is_distributed_env = (
-            cuda_visible_devices is not None and len(cuda_visible_devices.strip()) == 0
+def _is_gfx906_triton_distribution() -> bool:
+    # `nlzy/triton-gfx906` keeps the import module as `triton` while changing
+    # distribution/package naming. Probe common dist names for compatibility.
+    return _has_distribution("triton-gfx906") or _has_distribution("triton_gfx906")
+
+
+def _skip_active_driver_check() -> bool:
+    # Opt-in escape hatch for Triton variants that do not expose
+    # `triton.backends` with upstream semantics.
+    return os.getenv("VLLM_TRITON_SKIP_ACTIVE_DRIVER_CHECK", "0") == "1"
+
+
+HAS_TRITON = _has_module("triton") or _has_module("pytorch-triton-xpu")
+TRITON_IS_GFX906_VARIANT = False
+if HAS_TRITON:
+    TRITON_IS_GFX906_VARIANT = _is_gfx906_triton_distribution()
+    skip_active_driver_check = (
+        _skip_active_driver_check() or TRITON_IS_GFX906_VARIANT
+    )
+
+    if skip_active_driver_check:
+        logger.info_once(
+            "Skipping Triton active-driver probe for compatibility mode."
         )
+    else:
+        try:
+            from triton.backends import backends
 
-        # Apply lenient driver check for distributed environments
-        if is_distributed_env and len(active_drivers) == 0:
-            # Allow 0 drivers in distributed environments - they may become
-            # active later when CUDA context is properly initialized
-            logger.debug(
-                "Triton found 0 active drivers in distributed environment. "
-                "This is expected during initialization."
+            # It's generally expected that x.driver exists and has
+            # an is_active method.
+            # The `x.driver and` check adds a small layer of safety.
+            active_drivers = [
+                x.driver for x in backends.values() if x.driver and x.driver.is_active()
+            ]
+
+            # Check if we're in a distributed environment where CUDA_VISIBLE_DEVICES
+            # might be temporarily empty (e.g., Ray sets it to "" during actor init)
+            cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+            is_distributed_env = (
+                cuda_visible_devices is not None
+                and len(cuda_visible_devices.strip()) == 0
             )
-        elif not is_distributed_env and len(active_drivers) != 1:
-            # Strict check for non-distributed environments
-            logger.info(
-                "Triton is installed but %d active driver(s) found "
-                "(expected 1). Disabling Triton to prevent runtime errors.",
-                len(active_drivers),
+
+            # Apply lenient driver check for distributed environments
+            if is_distributed_env and len(active_drivers) == 0:
+                # Allow 0 drivers in distributed environments - they may become
+                # active later when CUDA context is properly initialized
+                logger.debug(
+                    "Triton found 0 active drivers in distributed environment. "
+                    "This is expected during initialization."
+                )
+            elif not is_distributed_env and len(active_drivers) != 1:
+                # Strict check for non-distributed environments
+                logger.info(
+                    "Triton is installed but %d active driver(s) found "
+                    "(expected 1). Disabling Triton to prevent runtime errors.",
+                    len(active_drivers),
+                )
+                HAS_TRITON = False
+        except ImportError:
+            # This can occur if Triton is partially installed or triton.backends
+            # is missing.
+            logger.warning(
+                "Triton is installed, but `triton.backends` could not be imported. "
+                "Disabling Triton."
             )
             HAS_TRITON = False
-    except ImportError:
-        # This can occur if Triton is partially installed or triton.backends
-        # is missing.
-        logger.warning(
-            "Triton is installed, but `triton.backends` could not be imported. "
-            "Disabling Triton."
-        )
-        HAS_TRITON = False
-    except Exception as e:
-        # Catch any other unexpected errors during the check.
-        logger.warning(
-            "An unexpected error occurred while checking Triton active drivers:"
-            " %s. Disabling Triton.",
-            e,
-        )
-        HAS_TRITON = False
+        except Exception as e:
+            # Catch any other unexpected errors during the check.
+            logger.warning(
+                "An unexpected error occurred while checking Triton active drivers:"
+                " %s. Disabling Triton.",
+                e,
+            )
+            HAS_TRITON = False
 
 if not HAS_TRITON:
     logger.info(

@@ -1,0 +1,58 @@
+ARG BASE_IMAGE=rocm/dev-ubuntu-22.04:6.3-complete
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ROCM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/rocm6.3
+ARG TORCH_VERSION=2.9.0
+ARG TORCHVISION_VERSION=0.24.0
+ARG TORCHAUDIO_VERSION=2.9.0
+ARG TRITON_GFX906_SPEC=git+https://github.com/nlzy/triton-gfx906.git@v3.5.0+gfx906
+
+ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:${PATH}
+ENV ROCM_PATH=/opt/rocm
+ENV PYTORCH_ROCM_ARCH=gfx906
+ENV VLLM_TARGET_DEVICE=rocm
+ENV VLLM_TRITON_SKIP_ACTIVE_DRIVER_CHECK=1
+ENV VLLM_ATTENTION_BACKEND=ROCM_ATTN
+ENV VLLM_ROCM_USE_AITER=0
+ENV VLLM_ROCM_CUSTOM_PAGED_ATTN=0
+ENV VLLM_V1_USE_PREFILL_DECODE_ATTENTION=1
+ENV HIP_FORCE_DEV_KERNARG=1
+ENV TOKENIZERS_PARALLELISM=false
+ENV PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    git \
+    build-essential \
+    cmake \
+    ninja-build \
+    pkg-config \
+    curl \
+    ca-certificates \
+    libnuma-dev \
+    libjpeg-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+WORKDIR /workspace
+COPY . /workspace
+
+RUN python3 -m pip install --index-url ${ROCM_PYTORCH_INDEX_URL} \
+    torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio==${TORCHAUDIO_VERSION}
+
+RUN python3 -m pip uninstall -y triton triton-rocm || true
+RUN python3 -m pip install "${TRITON_GFX906_SPEC}"
+
+RUN python3 -m pip install -r requirements/rocm-build.txt -r requirements/rocm.txt
+RUN python3 -m pip install "transformers>=5.2,<6" "tokenizers>=0.22.0,<0.23"
+RUN python3 -m pip install --no-build-isolation -e .
+
+RUN python3 -c "import importlib.metadata as m; print('torch', m.version('torch')); print('transformers', m.version('transformers')); print('triton-gfx906', m.version('triton-gfx906')); import vllm; print('vllm import ok')"
+
+EXPOSE 8000
+CMD ["/bin/bash"]

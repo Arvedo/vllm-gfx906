@@ -1,0 +1,39 @@
+services:
+  vllm-mi50:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.rocm.mi50
+    container_name: vllm-mi50
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      VLLM_MODEL: ${VLLM_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ${HF_CACHE_DIR:-./.cache/huggingface}:/root/.cache/huggingface
+      - ${MODELS_DIR:-./models}:/models:ro
+    command:
+      - sh
+      - -lc
+      - >-
+        python -m vllm.entrypoints.openai.api_server
+        --host 0.0.0.0
+        --port 8000
+        --model "${VLLM_MODEL}"
+        --dtype float16
+        --gpu-memory-utilization 0.85
+        --max-model-len 4096

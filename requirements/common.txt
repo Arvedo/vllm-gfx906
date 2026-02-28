@@ -7,8 +7,10 @@ requests >= 2.26.0
 tqdm
 blake3
 py-cpuinfo
-transformers >= 4.56.0, < 5
-tokenizers >= 0.21.1  # Required for fast incremental detokenization.
+transformers >= 5.2, < 6
+tokenizers >= 0.22.0, < 0.23  # Required for fast incremental detokenization and Transformers 5.x.
+huggingface-hub >= 0.34.0, < 1.0  # Keep pre-1.0 hub APIs expected by current integrations.
+safetensors >= 0.4.5  # Explicit floor for Transformers 5.x model loading paths.
 protobuf # Required by LlamaTokenizer.
 fastapi[standard] >= 0.115.0 # Required by FastAPI's form models in the OpenAI API server's audio transcriptions endpoint.
 aiohttp
