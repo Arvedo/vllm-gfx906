@@ -95,8 +95,20 @@ from .interfaces import (
     MultiModalEmbeddings,
     SupportsLoRA,
     SupportsPP,
-    _require_is_multimodal,
 )
+
+try:
+    from .interfaces import _require_is_multimodal
+except ImportError:
+
+    def _require_is_multimodal(is_multimodal: torch.Tensor | None) -> torch.Tensor:
+        if is_multimodal is None:
+            raise ValueError(
+                "`embed_input_ids` now requires `is_multimodal` arg, "
+                "please update your model runner according to "
+                "https://github.com/vllm-project/vllm/pull/16229."
+            )
+        return is_multimodal
 from .qwen2_moe import Qwen2MoeMLP as Qwen3NextMLP
 from .qwen3_next import (
     Qwen3NextAttention,

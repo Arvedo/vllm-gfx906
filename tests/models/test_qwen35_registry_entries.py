@@ -5,6 +5,10 @@ import importlib
 import sys
 import types
 
+import pytest
+
+import torch
+
 from vllm.model_executor.models.registry import (
     _MULTIMODAL_MODELS,
     _SPECULATIVE_DECODING_MODELS,
@@ -66,3 +70,24 @@ def test_qwen35_import_with_missing_mamba_copy_symbols(monkeypatch):
     # Fallback copy funcs must be no-op callables, even with arbitrary args.
     assert copy_funcs[0](object(), object()) is None
     assert copy_funcs[1](state=None, cache=None) is None
+
+
+def test_qwen35_import_with_missing_require_is_multimodal(monkeypatch):
+    import vllm.model_executor.models.interfaces as real_interfaces
+
+    monkeypatch.delattr(real_interfaces, "_require_is_multimodal", raising=False)
+    sys.modules.pop("vllm.model_executor.models.qwen3_5", None)
+
+    qwen35_module = importlib.import_module("vllm.model_executor.models.qwen3_5")
+
+    # Import must succeed even if private helper is absent in interfaces.
+    assert qwen35_module is not None
+
+    required = qwen35_module._require_is_multimodal
+
+    # Fallback helper keeps the same contract.
+    with pytest.raises(ValueError, match="requires `is_multimodal`"):
+        required(None)
+
+    mask = torch.tensor([True, False])
+    assert torch.equal(required(mask), mask)
