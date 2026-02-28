@@ -45,11 +45,18 @@ from vllm.model_executor.layers.layernorm import (
 from vllm.model_executor.layers.linear import MergedColumnParallelLinear
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
 from vllm.model_executor.layers.mamba.mamba_utils import (
-    MambaStateCopyFunc,
-    MambaStateCopyFuncCalculator,
     MambaStateDtypeCalculator,
     MambaStateShapeCalculator,
 )
+
+try:
+    from vllm.model_executor.layers.mamba.mamba_utils import (
+        MambaStateCopyFunc,
+        MambaStateCopyFuncCalculator,
+    )
+except ImportError:
+    MambaStateCopyFunc = Callable[..., None]
+    MambaStateCopyFuncCalculator = None
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
@@ -781,7 +788,19 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
 
     @classmethod
     def get_mamba_state_copy_func(cls) -> tuple[MambaStateCopyFunc, MambaStateCopyFunc]:
-        return MambaStateCopyFuncCalculator.gated_delta_net_state_copy_func()
+        if MambaStateCopyFuncCalculator is not None:
+            return MambaStateCopyFuncCalculator.gated_delta_net_state_copy_func()
+
+        logger.warning_once(
+            "MambaStateCopyFuncCalculator is unavailable in mamba_utils; "
+            "falling back to no-op mamba state copy functions for runtime "
+            "compatibility."
+        )
+
+        def _noop_state_copy(*args, **kwargs) -> None:
+            return None
+
+        return _noop_state_copy, _noop_state_copy
 
 
 ########################################################

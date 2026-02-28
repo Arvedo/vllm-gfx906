@@ -34,10 +34,15 @@ Primary upstream commits reviewed for this merge set:
 - Qwen 3.5 model implementation reuses existing vLLM core components (notably Qwen3-Next/GDN infrastructure) instead of introducing ROCm-specific behavior changes.
 - This keeps existing gfx906 behavior intact while enabling model/config registration and loading for Qwen 3.5 classes.
 
+## Runtime compatibility fixes
+- `vllm/model_executor/models/qwen3_5.py` now guards import of `MambaStateCopyFunc` and `MambaStateCopyFuncCalculator` from `vllm/model_executor/layers/mamba/mamba_utils.py`.
+- In environments where these symbols are absent, Qwen3.5 import now falls back to no-op mamba state copy callables, preventing architecture inspection/import-time crashes for `Qwen3_5MoeForConditionalGeneration`.
+
 ## Tests added/updated
 - Added focused unit checks for Qwen 3.5 registration points:
   - `tests/transformers_utils/test_qwen35_config_registry.py`
   - `tests/models/test_qwen35_registry_entries.py`
+- Added import-regression coverage in `tests/models/test_qwen35_registry_entries.py` to verify Qwen3.5 module import succeeds when mamba copy symbols are missing.
 - Updated `tests/models/registry.py` with Qwen 3.5 example model entries and transformer-version gates.
 
 Validation notes:
