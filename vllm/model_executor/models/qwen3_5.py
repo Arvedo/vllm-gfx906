@@ -49,14 +49,18 @@ from vllm.model_executor.layers.mamba.mamba_utils import (
     MambaStateShapeCalculator,
 )
 
-try:
-    from vllm.model_executor.layers.mamba.mamba_utils import (
-        MambaStateCopyFunc,
-        MambaStateCopyFuncCalculator,
-    )
-except ImportError:
-    MambaStateCopyFunc = Callable[..., None]
-    MambaStateCopyFuncCalculator = None
+from vllm.model_executor.layers.mamba import mamba_utils as _mamba_utils
+
+MambaStateCopyFunc = getattr(
+    _mamba_utils,
+    "MambaStateCopyFunc",
+    Callable[..., None],
+)
+MambaStateCopyFuncCalculator = getattr(
+    _mamba_utils,
+    "MambaStateCopyFuncCalculator",
+    None,
+)
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,

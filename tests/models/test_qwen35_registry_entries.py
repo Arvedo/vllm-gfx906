@@ -56,3 +56,7 @@ def test_qwen35_import_with_missing_mamba_copy_symbols(monkeypatch):
     copy_funcs = qwen35_module.Qwen3_5ForConditionalGeneration.get_mamba_state_copy_func()
     assert len(copy_funcs) == 2
     assert all(callable(fn) for fn in copy_funcs)
+
+    # Fallback copy funcs must be no-op callables, even with arbitrary args.
+    copy_funcs[0](object(), object())
+    copy_funcs[1](state=None, cache=None)
