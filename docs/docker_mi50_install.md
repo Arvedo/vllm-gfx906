@@ -21,6 +21,8 @@ Prerequisite/reliability note: the MI50 Docker build path installs `pybind11` (a
 
 Triton package naming note: depending on source/build backend, Triton metadata may appear under `triton-gfx906`, `triton_gfx906`, `triton`, or `pytorch-triton-rocm`. The Dockerfile verification now treats these as acceptable metadata variants, while still hard-failing if `import triton` fails.
 
+Troubleshooting note: missing `.git` in Docker build context is expected; the image sets `SETUPTOOLS_SCM_PRETEND_VERSION` and `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VLLM` so local vLLM install remains deterministic.
+
 Optional version/index overrides:
 
 ```bash
