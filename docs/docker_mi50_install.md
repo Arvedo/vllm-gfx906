@@ -101,6 +101,23 @@ python3 -c "import torch; print('cuda/rocm visible:', torch.cuda.is_available())
 vllm serve /models/<your-model> --dtype float16 --port 8000
 ```
 
+## Docker Compose port-collision workaround
+
+If host port `8000` is already in use, set `VLLM_HOST_PORT` to publish the container's internal `8000` on a different host port:
+
+```bash
+VLLM_HOST_PORT=8010 docker compose up -d vllm-mi50
+```
+
+Identify what is using host port `8000` (Linux) and stop it:
+
+```bash
+sudo ss -lptn 'sport = :8000'
+# then stop the reported process/container, e.g.:
+# sudo kill <PID>
+# docker stop <container_name_or_id>
+```
+
 ## Runtime defaults set in Dockerfile
 
 `docker/Dockerfile.rocm.mi50` sets conservative defaults for gfx906 safety:

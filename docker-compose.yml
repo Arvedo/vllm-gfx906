@@ -6,7 +6,7 @@ services:
     container_name: vllm-mi50
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${VLLM_HOST_PORT:-8000}:8000"
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
