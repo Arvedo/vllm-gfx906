@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+import vllm.config.model as model_config_module
 from vllm.compilation.backends import VllmBackend
 from vllm.config import (
     CompilationConfig,
@@ -341,6 +342,32 @@ def test_rope_customization():
         == TEST_ROPE_PARAMETERS
     )
     assert longchat_model_config.max_model_len == 4096
+
+
+def test_rope_layer_types_compatibility_with_allowed_layer_types(monkeypatch):
+    monkeypatch.setattr(
+        model_config_module,
+        "ALLOWED_LAYER_TYPES",
+        {"decoder", "encoder"},
+    )
+
+    assert model_config_module._rope_parameters_are_layer_typed(
+        {"decoder": {"rope_type": "dynamic", "factor": 2.0}}
+    )
+    assert not model_config_module._rope_parameters_are_layer_typed(
+        {"rope_type": "dynamic", "factor": 2.0}
+    )
+
+
+def test_rope_layer_types_compatibility_without_allowed_layer_types(monkeypatch):
+    monkeypatch.setattr(model_config_module, "ALLOWED_LAYER_TYPES", None)
+
+    assert model_config_module._rope_parameters_are_layer_typed(
+        {"decoder": {"rope_type": "dynamic", "factor": 2.0}}
+    )
+    assert not model_config_module._rope_parameters_are_layer_typed(
+        {"decoder": {"factor": 2.0}}
+    )
 
 
 def test_nested_hf_overrides():

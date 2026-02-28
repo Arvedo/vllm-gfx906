@@ -51,3 +51,9 @@ This update changes dependency declarations only (no Dockerfile or runtime code 
 ## Hotfix note
 
 - Applied a targeted dependency hotfix for the MI50 Docker build path (`pip install -r requirements/rocm-build.txt -r requirements/rocm.txt`): `huggingface-hub` was raised from pre-1.0 to `>=1.3.0,<2.0` to remove pip resolver conflicts with Transformers 5.2.
+
+## Runtime compatibility note (Transformers 5.2)
+
+- Added a minimal runtime compatibility fallback in `vllm/config/model.py` for `ALLOWED_LAYER_TYPES` import changes in Transformers 5.2+.
+- Behavior: if `transformers.configuration_utils.ALLOWED_LAYER_TYPES` is unavailable, vLLM now avoids import-time failure and falls back to a shape-based rope parameter check (expects per-layer entries to be dicts containing `rope_type`).
+- Validation intent is preserved by still normalizing non-layer-typed `rope_parameters` into the single-entry form used by max-length verification logic.

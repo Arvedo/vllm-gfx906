@@ -11,7 +11,10 @@ import torch
 from pydantic import ConfigDict, SkipValidation, field_validator, model_validator
 from pydantic.dataclasses import dataclass
 from safetensors.torch import _TYPES as _SAFETENSORS_TO_TORCH_DTYPE
-from transformers.configuration_utils import ALLOWED_LAYER_TYPES
+try:
+    from transformers.configuration_utils import ALLOWED_LAYER_TYPES
+except ImportError:
+    ALLOWED_LAYER_TYPES = None
 
 import vllm.envs as envs
 from vllm.attention.backends.registry import AttentionBackendEnum
@@ -2112,6 +2115,25 @@ def _get_head_dtype(
         raise ValueError(f"Unknown dtype: {head_dtype}")
 
 
+def _rope_parameters_are_layer_typed(
+    rope_parameters: Any,
+) -> bool:
+    """Return whether rope_parameters is in layer-typed dict form."""
+    if not isinstance(rope_parameters, dict) or not rope_parameters:
+        return False
+
+    if ALLOWED_LAYER_TYPES is not None:
+        return set(rope_parameters.keys()).issubset(ALLOWED_LAYER_TYPES)
+
+    # Transformers compatibility fallback when ALLOWED_LAYER_TYPES is absent.
+    # In layer-typed form, each value is expected to be a dict carrying
+    # a per-layer rope configuration.
+    return all(
+        isinstance(value, dict) and "rope_type" in value
+        for value in rope_parameters.values()
+    )
+
+
 def _get_and_verify_max_len(
     hf_config: PretrainedConfig,
     tokenizer_config: dict | None,
@@ -2195,9 +2217,7 @@ def _get_and_verify_max_len(
     # In Transformers v5 rope_parameters could be TypedDict or dict[str, TypedDict].
     # To simplify the verification, we convert it to dict[str, TypedDict].
     rope_parameters = getattr(hf_config, "rope_parameters", None)
-    if rope_parameters and not set(rope_parameters.keys()).issubset(
-        ALLOWED_LAYER_TYPES
-    ):
+    if rope_parameters and not _rope_parameters_are_layer_typed(rope_parameters):
         rope_parameters = {"": rope_parameters}
 
     # NOTE(woosuk): Gemma3's max_model_len (128K) is already scaled by RoPE
