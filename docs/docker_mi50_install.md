@@ -17,6 +17,8 @@ From the repository root:
 docker build -f docker/Dockerfile.rocm.mi50 -t vllm-gfx906:mi50 .
 ```
 
+Prerequisite note: the MI50 Docker build path installs `pybind11` before `pip install --no-build-isolation -e .` so `fastsafetensors` metadata generation does not fail.
+
 Optional version/index overrides:
 
 ```bash

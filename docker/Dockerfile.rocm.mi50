@@ -50,6 +50,7 @@ RUN python3 -m pip install "${TRITON_GFX906_SPEC}"
 
 RUN python3 -m pip install -r requirements/rocm-build.txt -r requirements/rocm.txt
 RUN python3 -m pip install "transformers>=5.2,<6" "tokenizers>=0.22.0,<0.23"
+RUN python3 -m pip install pybind11
 RUN python3 -m pip install --no-build-isolation -e .
 
 RUN python3 -c "import importlib.metadata as m; print('torch', m.version('torch')); print('transformers', m.version('transformers')); print('triton-gfx906', m.version('triton-gfx906')); import vllm; print('vllm import ok')"
