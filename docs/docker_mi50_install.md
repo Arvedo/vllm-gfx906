@@ -17,7 +17,7 @@ From the repository root:
 docker build -f docker/Dockerfile.rocm.mi50 -t vllm-gfx906:mi50 .
 ```
 
-Prerequisite/reliability note: the MI50 Docker build path installs `pybind11` (and build helpers `ninja`/`cmake`) before local vLLM install, and now uses non-editable `pip install .` for better reliability on older `docker-compose`/legacy builder hosts.
+Prerequisite/reliability note: the MI50 Docker build path installs `pybind11` (and build helpers `ninja`/`cmake`) before local vLLM install, and uses non-editable `pip install --no-build-isolation .` with `VLLM_TARGET_DEVICE=rocm` to avoid `RuntimeError: Unknown runtime environment` in legacy `docker-compose` builds.
 
 Triton package naming note: depending on source/build backend, Triton metadata may appear under `triton-gfx906`, `triton_gfx906`, `triton`, or `pytorch-triton-rocm`. The Dockerfile verification now treats these as acceptable metadata variants, while still hard-failing if `import triton` fails.
 
