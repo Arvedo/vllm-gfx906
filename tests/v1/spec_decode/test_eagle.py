@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+import builtins
 from unittest import mock
 
 import pytest
@@ -26,6 +27,7 @@ from vllm.config import (
 from vllm.config.load import LoadConfig
 from vllm.model_executor.models.llama import LlamaForCausalLM
 from vllm.platforms import current_platform
+from vllm.v1.attention.backends.triton_attn import TritonAttentionMetadata
 from vllm.v1.spec_decode.eagle import EagleProposer
 from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
 from vllm.v1.worker.gpu_input_batch import CachedRequestState, InputBatch
@@ -70,6 +72,26 @@ def _create_proposer(
     )
 
     return EagleProposer(vllm_config=vllm_config, device=current_platform.device_type)
+
+
+def test_rocm_eagle_proposer_falls_back_when_flash_attn_missing(monkeypatch):
+    import vllm.v1.spec_decode.eagle as eagle_module
+
+    monkeypatch.setattr(eagle_module.current_platform, "is_rocm", lambda: True)
+
+    orig_import = builtins.__import__
+
+    def _mock_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "vllm.v1.attention.backends.flash_attn":
+            raise ImportError("flash_attn backend unavailable")
+        return orig_import(name, globals, locals, fromlist, level)
+
+    with mock.patch("builtins.__import__", side_effect=_mock_import):
+        proposer = _create_proposer("eagle", num_speculative_tokens=1)
+
+    assert proposer.allowed_attn_types is not None
+    assert TritonAttentionMetadata in proposer.allowed_attn_types
+    assert all(t.__name__ != "FlashAttentionMetadata" for t in proposer.allowed_attn_types)
 
 
 def test_prepare_next_token_ids():
