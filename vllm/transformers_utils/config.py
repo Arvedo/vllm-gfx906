@@ -303,7 +303,7 @@ def set_default_rope_theta(config: PretrainedConfig, default_theta: float) -> No
         config.rope_parameters["rope_theta"] = default_theta
 
 
- def _rope_parameters_are_layer_typed(rope_parameters: Any) -> bool:
+def _rope_parameters_are_layer_typed(rope_parameters: Any) -> bool:
     """Return whether rope_parameters is in layer-typed dict form."""
     if not isinstance(rope_parameters, dict) or not rope_parameters:
         return False
@@ -320,7 +320,7 @@ def set_default_rope_theta(config: PretrainedConfig, default_theta: float) -> No
     )
 
 
- def patch_rope_parameters(config: PretrainedConfig) -> None:
+def patch_rope_parameters(config: PretrainedConfig) -> None:
     """Provide backwards compatibility for RoPE."""
     if Version(version("transformers")) < Version("5.0.0.dev0"):
         # Transformers v4 installed, legacy config fields may be present
