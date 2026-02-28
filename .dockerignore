@@ -31,3 +31,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# VCS / local caches / large local model dirs
+.git
+.cache
+models

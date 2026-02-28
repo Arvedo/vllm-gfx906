@@ -101,21 +101,24 @@ python3 -c "import torch; print('cuda/rocm visible:', torch.cuda.is_available())
 vllm serve /models/<your-model> --dtype float16 --port 8000
 ```
 
-## Docker Compose port-collision workaround
+## Docker Compose single-command start (legacy v1 friendly)
 
-If host port `8000` is already in use, set `VLLM_HOST_PORT` to publish the container's internal `8000` on a different host port:
+Run from repository root:
 
 ```bash
-VLLM_HOST_PORT=8010 docker compose up -d vllm-mi50
+docker-compose up -d --build vllm-mi50
 ```
 
-Identify what is using host port `8000` (Linux) and stop it:
+This works without exporting variables and uses MI50 defaults from `docker-compose.yml`:
+- model: `btbtyler09/Qwen3.5-35B-A3B-GPTQ-4bit`
+- host port: `8010` (container port remains `8000`)
+- `HIP_VISIBLE_DEVICES=4,5`
+- tensor parallel size: `2`
+
+One-time cleanup for older `docker-compose` v1 `ContainerConfig` recreate bug:
 
 ```bash
-sudo ss -lptn 'sport = :8000'
-# then stop the reported process/container, e.g.:
-# sudo kill <PID>
-# docker stop <container_name_or_id>
+docker-compose down --remove-orphans && docker-compose rm -f vllm-mi50
 ```
 
 ## Runtime defaults set in Dockerfile
