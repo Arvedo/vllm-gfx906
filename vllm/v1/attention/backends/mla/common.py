@@ -188,6 +188,7 @@ return curr_o @ W_O
 """
 
 import functools
+import importlib.util
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -255,9 +256,21 @@ try:
 
     is_vllm_fa = True
 except ImportError:
-    # For rocm use upstream flash attention
+    # For ROCm, avoid eager hard-fail if upstream flash_attn is unavailable.
     if current_platform.is_rocm():
-        from flash_attn import flash_attn_varlen_func
+        if importlib.util.find_spec("flash_attn") is not None:
+            from flash_attn import flash_attn_varlen_func
+        else:
+            logger.info_once(
+                "ROCm MLA import fallback active: flash_attn not found; "
+                "FlashAttention-specific MLA path disabled."
+            )
+
+            def flash_attn_varlen_func(*args, **kwargs):
+                raise ImportError(
+                    "flash_attn is not installed. "
+                    "Please select a non-FlashAttention backend on ROCm."
+                )
     is_vllm_fa = False
 
 try:

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+import importlib.util
+
 from vllm import envs
 from vllm.logger import init_logger
 from vllm.platforms import current_platform
@@ -19,14 +21,18 @@ elif current_platform.is_xpu():
     flash_attn_varlen_func = ops.flash_attn_varlen_func
     get_scheduler_metadata = ops.get_scheduler_metadata
 elif current_platform.is_rocm():
-    try:
+    if importlib.util.find_spec("flash_attn") is not None:
         from flash_attn import flash_attn_varlen_func  # type: ignore[no-redef]
-    except ImportError:
+    else:
+        logger.info_once(
+            "ROCm startup detected without flash_attn; FlashAttention-specific "
+            "paths will remain disabled."
+        )
 
         def flash_attn_varlen_func(*args, **kwargs):
             raise ImportError(
-                "Rocm platform requires upstream flash-attn "
-                "to be installed. Please install flash-attn first."
+                "flash_attn is not installed. "
+                "Please select a non-FlashAttention backend on ROCm."
             )
 
 
@@ -116,4 +122,6 @@ def flash_attn_supports_mla():
 
 
 def is_flash_attn_varlen_func_available() -> bool:
+    if current_platform.is_rocm():
+        return importlib.util.find_spec("flash_attn") is not None
     return current_platform.is_cuda() or current_platform.is_xpu()
