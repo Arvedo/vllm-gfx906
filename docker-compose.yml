@@ -19,13 +19,13 @@ services:
     security_opt:
       - seccomp=unconfined
     environment:
-      VLLM_MODEL: ${VLLM_MODEL:-btbtyler09/Qwen3.5-35B-A3B-GPTQ-4bit}
+      VLLM_MODEL: ${VLLM_MODEL:-QuantTrio/Qwen3.5-35B-A3B-AWQ}
       HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-4,5}
       VLLM_TENSOR_PARALLEL_SIZE: ${VLLM_TENSOR_PARALLEL_SIZE:-2}
       VLLM_DTYPE: ${VLLM_DTYPE:-float16}
       VLLM_REASONING_PARSER: ${VLLM_REASONING_PARSER:-qwen3}
       VLLM_TOOL_CALL_PARSER: ${VLLM_TOOL_CALL_PARSER:-qwen3_xml}
-      VLLM_LIMIT_MM_PER_PROMPT: '${VLLM_LIMIT_MM_PER_PROMPT:-{"image":0}}'
+      VLLM_LIMIT_MM_PER_PROMPT: '${VLLM_LIMIT_MM_PER_PROMPT:-{"image":1,"video":0}}'
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_TOKEN: ${HF_TOKEN:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -39,7 +39,7 @@ services:
         python3 -m vllm.entrypoints.openai.api_server
         --host 0.0.0.0
         --port 8000
-        --model "${VLLM_MODEL:-btbtyler09/Qwen3.5-35B-A3B-GPTQ-4bit}"
+        --model "${VLLM_MODEL:-QuantTrio/Qwen3.5-35B-A3B-AWQ}"
         --dtype "${VLLM_DTYPE:-float16}"
         --tensor-parallel-size "${VLLM_TENSOR_PARALLEL_SIZE:-2}"
         --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
@@ -47,5 +47,5 @@ services:
         --reasoning-parser "${VLLM_REASONING_PARSER:-qwen3}"
         --enable-auto-tool-choice
         --tool-call-parser "${VLLM_TOOL_CALL_PARSER:-qwen3_xml}"
-        --limit-mm-per-prompt "${VLLM_LIMIT_MM_PER_PROMPT:-{\"image\":0}}"
+        --limit-mm-per-prompt "${VLLM_LIMIT_MM_PER_PROMPT:-{\"image\":1,\"video\":0}}"
         ${VLLM_EXTRA_ARGS:-}

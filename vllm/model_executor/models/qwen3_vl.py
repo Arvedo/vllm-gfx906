@@ -376,11 +376,19 @@ class Qwen3_VisionTransformer(nn.Module):
             attn_backend_override=attn_backend_override,
         )
 
-        if self.attn_backend not in {
+        supported_vit_backends = {
             AttentionBackendEnum.FLASH_ATTN,
             AttentionBackendEnum.TORCH_SDPA,
             AttentionBackendEnum.ROCM_AITER_FA,
-        }:
+        }
+        if self.attn_backend == AttentionBackendEnum.ROCM_ATTN:
+            logger.warning_once(
+                "Qwen3-VL vision tower does not support %s. Falling back to %s.",
+                self.attn_backend,
+                AttentionBackendEnum.TORCH_SDPA,
+            )
+            self.attn_backend = AttentionBackendEnum.TORCH_SDPA
+        elif self.attn_backend not in supported_vit_backends:
             raise RuntimeError(
                 f"Qwen3-VL does not support {self.attn_backend} backend now."
             )
