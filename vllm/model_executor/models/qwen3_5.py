@@ -27,6 +27,7 @@
 import inspect
 import typing
 from collections.abc import Callable, Iterable
+from contextlib import nullcontext
 
 import torch
 from einops import rearrange
@@ -666,6 +667,17 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
         "in_proj_ba": ["in_proj_b", "in_proj_a"],
     }
 
+    def _maybe_mark_tower_model(self, vllm_config: VllmConfig, modalities: set[str]):
+        mark_tower_model = getattr(self, "_mark_tower_model", None)
+        if callable(mark_tower_model):
+            return mark_tower_model(vllm_config, modalities)
+
+        logger.warning_once(
+            "_mark_tower_model is unavailable; using compatibility no-op "
+            "context manager."
+        )
+        return nullcontext()
+
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = "model"):
         # protocols have not __init__ method, so we need to use nn.Module.__init__
         nn.Module.__init__(self)
@@ -681,7 +693,7 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
             multimodal_config.is_multimodal_pruning_enabled()
         )
 
-        with self._mark_tower_model(vllm_config, {"image", "video"}):
+        with self._maybe_mark_tower_model(vllm_config, {"image", "video"}):
             self.visual = Qwen3_VisionTransformer(
                 config.vision_config,
                 norm_eps=getattr(config, "rms_norm_eps", 1e-6),
@@ -905,7 +917,7 @@ class Qwen3_5MoeForConditionalGeneration(
             multimodal_config.is_multimodal_pruning_enabled()
         )
 
-        with self._mark_tower_model(vllm_config, {"image", "video"}):
+        with self._maybe_mark_tower_model(vllm_config, {"image", "video"}):
             self.visual = Qwen3_VisionTransformer(
                 config.vision_config,
                 norm_eps=getattr(config, "rms_norm_eps", 1e-6),

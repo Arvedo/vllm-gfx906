@@ -4,6 +4,7 @@
 import importlib
 import sys
 import types
+from contextlib import contextmanager
 
 import pytest
 
@@ -168,3 +169,60 @@ def test_qwen35_mamba_state_dtype_compat_with_three_arg_calculator(monkeypatch):
         "mamba_cache_dtype": "auto",
         "mamba_ssm_cache_dtype": "float32",
     }
+
+
+def test_qwen35_mark_tower_model_compat_when_helper_present():
+    import vllm.model_executor.models.qwen3_5 as qwen35_module
+
+    calls: list[tuple[str, object, object]] = []
+
+    @contextmanager
+    def _mark_tower_model(vllm_config, modalities):
+        calls.append(("enter", vllm_config, modalities))
+        try:
+            yield
+        finally:
+            calls.append(("exit", vllm_config, modalities))
+
+    model = qwen35_module.Qwen3_5ForConditionalGeneration.__new__(
+        qwen35_module.Qwen3_5ForConditionalGeneration
+    )
+    model._mark_tower_model = _mark_tower_model
+
+    cfg = object()
+    modalities = {"image", "video"}
+
+    with model._maybe_mark_tower_model(cfg, modalities):
+        calls.append(("body", cfg, modalities))
+
+    assert calls == [
+        ("enter", cfg, modalities),
+        ("body", cfg, modalities),
+        ("exit", cfg, modalities),
+    ]
+
+
+def test_qwen35_mark_tower_model_compat_when_helper_missing(monkeypatch):
+    import vllm.model_executor.models.qwen3_5 as qwen35_module
+
+    warning_messages: list[str] = []
+    monkeypatch.setattr(
+        qwen35_module.logger,
+        "warning_once",
+        lambda message: warning_messages.append(message),
+    )
+
+    model = qwen35_module.Qwen3_5ForConditionalGeneration.__new__(
+        qwen35_module.Qwen3_5ForConditionalGeneration
+    )
+
+    cfg = object()
+    modalities = {"image", "video"}
+
+    with model._maybe_mark_tower_model(cfg, modalities):
+        pass
+
+    assert warning_messages == [
+        "_mark_tower_model is unavailable; using compatibility no-op "
+        "context manager."
+    ]
