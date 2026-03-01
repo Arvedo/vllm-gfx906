@@ -381,14 +381,46 @@ class Qwen3_VisionTransformer(nn.Module):
             AttentionBackendEnum.TORCH_SDPA,
             AttentionBackendEnum.ROCM_AITER_FA,
         }
-        if self.attn_backend == AttentionBackendEnum.ROCM_ATTN:
+
+        # Normalize possible enum/string/path drift before backend checks.
+        original_backend = self.attn_backend
+        backend = original_backend
+        if isinstance(backend, str):
+            backend_name = backend.strip()
+            backend_name_upper = backend_name.upper()
+            if backend_name_upper in AttentionBackendEnum.__members__:
+                backend = AttentionBackendEnum[backend_name_upper]
+            else:
+                for enum_backend in AttentionBackendEnum:
+                    if backend_name == enum_backend.value:
+                        backend = enum_backend
+                        break
+            self.attn_backend = backend
+
+        backend_name_norms: set[str] = set()
+        if isinstance(original_backend, str):
+            backend_name_norms.add(original_backend.strip().upper().replace("-", "_"))
+        if isinstance(backend, AttentionBackendEnum):
+            backend_name_norms.add(backend.name.upper().replace("-", "_"))
+            backend_name_norms.add(str(backend.value).upper().replace("-", "_"))
+        else:
+            backend_name_norms.add(str(backend).upper().replace("-", "_"))
+
+        is_rocm_attn_backend = any(
+            "ROCM" in backend_name_norm
+            and "AITER" not in backend_name_norm
+            and any(tok in backend_name_norm for tok in ("ATTN", "FLASH", "FA"))
+            for backend_name_norm in backend_name_norms
+        )
+
+        if is_rocm_attn_backend:
             logger.warning_once(
                 "Qwen3-VL vision tower does not support %s. Falling back to %s.",
-                self.attn_backend,
+                backend,
                 AttentionBackendEnum.TORCH_SDPA,
             )
             self.attn_backend = AttentionBackendEnum.TORCH_SDPA
-        elif self.attn_backend not in supported_vit_backends:
+        elif backend not in supported_vit_backends:
             raise RuntimeError(
                 f"Qwen3-VL does not support {self.attn_backend} backend now."
             )
