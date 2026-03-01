@@ -574,7 +574,16 @@ class Qwen3_5ForCausalLMBase(
         cache_config = vllm_config.cache_config
 
         scheduler_config = vllm_config.scheduler_config
-        if cache_config.mamba_cache_mode == "all":
+        if hasattr(cache_config, "mamba_cache_mode"):
+            mamba_cache_mode = cache_config.mamba_cache_mode
+        else:
+            mamba_cache_mode = "align"
+            logger.warning_once(
+                "cache_config.mamba_cache_mode is unavailable; defaulting "
+                "to 'align' for backward compatibility."
+            )
+
+        if mamba_cache_mode == "all":
             raise NotImplementedError(
                 "Qwen3.5 currently does not support 'all' prefix caching, "
                 "please use '--mamba-cache-mode=align' instead"
