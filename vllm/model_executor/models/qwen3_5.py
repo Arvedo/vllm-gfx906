@@ -678,6 +678,17 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
         )
         return nullcontext()
 
+    def _maybe_mark_language_model(self, vllm_config: VllmConfig):
+        mark_language_model = getattr(self, "_mark_language_model", None)
+        if callable(mark_language_model):
+            return mark_language_model(vllm_config)
+
+        logger.warning_once(
+            "_mark_language_model is unavailable; using compatibility no-op "
+            "context manager."
+        )
+        return nullcontext()
+
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = "model"):
         # protocols have not __init__ method, so we need to use nn.Module.__init__
         nn.Module.__init__(self)
@@ -701,7 +712,7 @@ class Qwen3_5ForConditionalGeneration(Qwen3VLForConditionalGeneration, IsHybrid)
                 prefix=maybe_prefix(prefix, "visual"),
             )
 
-        with self._mark_language_model(vllm_config):
+        with self._maybe_mark_language_model(vllm_config):
             self.language_model = Qwen3_5ForCausalLM(
                 vllm_config=vllm_config, prefix=maybe_prefix(prefix, "language_model")
             )
@@ -925,7 +936,7 @@ class Qwen3_5MoeForConditionalGeneration(
                 prefix=maybe_prefix(prefix, "visual"),
             )
 
-        with self._mark_language_model(vllm_config):
+        with self._maybe_mark_language_model(vllm_config):
             self.language_model = Qwen3_5MoeForCausalLM(
                 vllm_config=vllm_config, prefix=maybe_prefix(prefix, "language_model")
             )
