@@ -99,6 +99,41 @@ logger = init_logger(__name__)
 KVCache = tuple[torch.Tensor, torch.Tensor]
 
 
+def _resolve_num_experts(config: object, model_config: ModelConfig | None = None) -> int:
+    num_experts = getattr(config, "num_experts", None)
+    if num_experts is not None:
+        return num_experts
+
+    fallback_candidates: list[tuple[str, int | None]] = [
+        ("text_config.num_experts", getattr(getattr(config, "text_config", None), "num_experts", None)),
+        ("n_routed_experts", getattr(config, "n_routed_experts", None)),
+        ("num_local_experts", getattr(config, "num_local_experts", None)),
+    ]
+    if model_config is not None:
+        hf_text_config = getattr(model_config, "hf_text_config", None)
+        fallback_candidates.insert(
+            1,
+            (
+                "model_config.hf_text_config.num_experts",
+                getattr(hf_text_config, "num_experts", None),
+            ),
+        )
+
+    for source, value in fallback_candidates:
+        if value is not None:
+            logger.warning_once(
+                "`num_experts` is unavailable in config; falling back to "
+                f"`{source}`={value} for compatibility."
+            )
+            return value
+
+    logger.warning_once(
+        "Unable to resolve MoE expert count from config; defaulting "
+        "`num_experts` to 0 for compatibility."
+    )
+    return 0
+
+
 class Qwen3NextSparseMoeBlock(nn.Module):
     def __init__(self, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
@@ -112,14 +147,14 @@ class Qwen3NextSparseMoeBlock(nn.Module):
         self.ep_group = get_ep_group().device_group
         self.ep_rank = get_ep_group().rank_in_group
         self.ep_size = self.ep_group.size()
-        self.n_routed_experts = config.num_experts
+        self.n_routed_experts = _resolve_num_experts(config, vllm_config.model_config)
 
         self.is_sequence_parallel = parallel_config.use_sequence_parallel_moe
 
-        if self.tp_size > config.num_experts:
+        if self.tp_size > self.n_routed_experts:
             raise ValueError(
                 f"Tensor parallel size {self.tp_size} is greater than "
-                f"the number of experts {config.num_experts}."
+                f"the number of experts {self.n_routed_experts}."
             )
 
         # Load balancing settings.
@@ -139,7 +174,7 @@ class Qwen3NextSparseMoeBlock(nn.Module):
 
         self.gate = ReplicatedLinear(
             config.hidden_size,
-            config.num_experts,
+            self.n_routed_experts,
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.gate",
@@ -852,9 +887,9 @@ class Qwen3NextDecoderLayer(nn.Module):
         mlp_only_layers = (
             [] if not hasattr(config, "mlp_only_layers") else config.mlp_only_layers
         )
+        num_experts = _resolve_num_experts(config, model_config)
         if (self.layer_idx not in mlp_only_layers) and (
-            config.num_experts > 0
-            and (self.layer_idx + 1) % config.decoder_sparse_step == 0
+            num_experts > 0 and (self.layer_idx + 1) % config.decoder_sparse_step == 0
         ):
             self.mlp = Qwen3NextSparseMoeBlock(
                 vllm_config=vllm_config,
@@ -1035,7 +1070,7 @@ class Qwen3NextModel(nn.Module):
             ckpt_gate_proj_name="gate_proj",
             ckpt_down_proj_name="down_proj",
             ckpt_up_proj_name="up_proj",
-            num_experts=self.config.num_experts,
+            num_experts=_resolve_num_experts(self.config),
             num_redundant_experts=self.num_redundant_experts,
         )
 

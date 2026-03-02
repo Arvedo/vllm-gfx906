@@ -119,6 +119,7 @@ from .qwen3_next import (
     Qwen3NextModel,
     Qwen3NextSparseMoeBlock,
     QwenNextMixtureOfExperts,
+    _resolve_num_experts,
 )
 from .qwen3_vl import (
     Qwen3_VisionTransformer,
@@ -420,9 +421,7 @@ class Qwen3_5Model(Qwen3NextModel):
             ("experts.w13_weight", "experts.gate_up_proj", 0, "w1"),
             ("experts.w2_weight", "experts.down_proj", 0, "w2"),
         ]
-        num_experts = (
-            self.config.num_experts if hasattr(self.config, "num_experts") else 0
-        )
+        num_experts = _resolve_num_experts(self.config)
         for name, loaded_weight in weights:
             if "rotary_emb.inv_freq" in name:
                 continue

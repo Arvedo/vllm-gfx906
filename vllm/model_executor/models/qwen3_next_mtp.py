@@ -23,6 +23,7 @@ from vllm.model_executor.models.qwen3_next import (
     Qwen3NextDecoderLayer,
     Qwen3NextRMSNorm,
     QwenNextMixtureOfExperts,
+    _resolve_num_experts,
 )
 from vllm.sequence import IntermediateTensors
 from vllm.transformers_utils.configs import Qwen3NextConfig
@@ -150,7 +151,7 @@ class Qwen3NextMultiTokenPredictor(nn.Module):
             ckpt_gate_proj_name="gate_proj",
             ckpt_down_proj_name="down_proj",
             ckpt_up_proj_name="up_proj",
-            num_experts=self.config.num_experts,
+            num_experts=_resolve_num_experts(self.config),
         )
 
         params_dict = dict(self.named_parameters())
