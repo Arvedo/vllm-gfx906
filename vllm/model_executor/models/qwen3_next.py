@@ -188,6 +188,21 @@ class Qwen3NextSparseMoeBlock(nn.Module):
         moe_intermediate_size = _resolve_config_field(
             config, "moe_intermediate_size", model_config
         )
+        hidden_act = _resolve_config_field(config, "hidden_act", model_config)
+        num_experts_per_tok = _resolve_config_field(
+            config, "num_experts_per_tok", model_config
+        )
+        norm_topk_prob = getattr(config, "norm_topk_prob", None)
+        if norm_topk_prob is None:
+            norm_topk_prob = getattr(
+                getattr(model_config, "hf_text_config", None),
+                "norm_topk_prob",
+                num_experts_per_tok > 1,
+            )
+            logger.warning_once(
+                "`norm_topk_prob` is unavailable in config; falling back to "
+                f"`{norm_topk_prob}` for compatibility."
+            )
 
         self.tp_size = get_tensor_model_parallel_world_size()
 
@@ -233,7 +248,7 @@ class Qwen3NextSparseMoeBlock(nn.Module):
             self.shared_expert = Qwen3NextMLP(
                 hidden_size=hidden_size,
                 intermediate_size=shared_expert_intermediate_size,
-                hidden_act=config.hidden_act,
+                hidden_act=hidden_act,
                 quant_config=quant_config,
                 reduce_results=False,
                 expert_gate=self.shared_expert_gate,
@@ -246,11 +261,11 @@ class Qwen3NextSparseMoeBlock(nn.Module):
             shared_experts=self.shared_expert,
             gate=self.gate,
             num_experts=self.n_routed_experts,
-            top_k=config.num_experts_per_tok,
+            top_k=num_experts_per_tok,
             hidden_size=hidden_size,
             intermediate_size=moe_intermediate_size,
             reduce_results=False,
-            renormalize=config.norm_topk_prob,
+            renormalize=norm_topk_prob,
             quant_config=quant_config,
             prefix=f"{prefix}.experts",
             enable_eplb=self.enable_eplb,
