@@ -99,6 +99,44 @@ logger = init_logger(__name__)
 KVCache = tuple[torch.Tensor, torch.Tensor]
 
 
+def _resolve_config_field(
+    config: object,
+    field_name: str,
+    model_config: ModelConfig | None = None,
+):
+    value = getattr(config, field_name, None)
+    if value is not None:
+        return value
+
+    fallback_candidates: list[tuple[str, object | None]] = [
+        (
+            f"text_config.{field_name}",
+            getattr(getattr(config, "text_config", None), field_name, None),
+        ),
+    ]
+    if model_config is not None:
+        hf_text_config = getattr(model_config, "hf_text_config", None)
+        fallback_candidates.insert(
+            0,
+            (
+                f"model_config.hf_text_config.{field_name}",
+                getattr(hf_text_config, field_name, None),
+            ),
+        )
+
+    for source, fallback_value in fallback_candidates:
+        if fallback_value is not None:
+            logger.warning_once(
+                f"`{field_name}` is unavailable in config; falling back to "
+                f"`{source}`={fallback_value} for compatibility."
+            )
+            return fallback_value
+
+    raise AttributeError(
+        f"Unable to resolve `{field_name}` from config or compatibility fallbacks."
+    )
+
+
 def _resolve_num_experts(config: object, model_config: ModelConfig | None = None) -> int:
     num_experts = getattr(config, "num_experts", None)
     if num_experts is not None:
@@ -138,16 +176,25 @@ class Qwen3NextSparseMoeBlock(nn.Module):
     def __init__(self, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
 
-        config = vllm_config.model_config.hf_config
+        model_config = vllm_config.model_config
+        config = model_config.hf_config
         parallel_config = vllm_config.parallel_config
         quant_config = vllm_config.quant_config
+
+        hidden_size = _resolve_config_field(config, "hidden_size", model_config)
+        shared_expert_intermediate_size = _resolve_config_field(
+            config, "shared_expert_intermediate_size", model_config
+        )
+        moe_intermediate_size = _resolve_config_field(
+            config, "moe_intermediate_size", model_config
+        )
 
         self.tp_size = get_tensor_model_parallel_world_size()
 
         self.ep_group = get_ep_group().device_group
         self.ep_rank = get_ep_group().rank_in_group
         self.ep_size = self.ep_group.size()
-        self.n_routed_experts = _resolve_num_experts(config, vllm_config.model_config)
+        self.n_routed_experts = _resolve_num_experts(config, model_config)
 
         self.is_sequence_parallel = parallel_config.use_sequence_parallel_moe
 
@@ -173,19 +220,19 @@ class Qwen3NextSparseMoeBlock(nn.Module):
         )
 
         self.gate = ReplicatedLinear(
-            config.hidden_size,
+            hidden_size,
             self.n_routed_experts,
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.gate",
         )
 
-        self.shared_expert_gate = torch.nn.Linear(config.hidden_size, 1, bias=False)
+        self.shared_expert_gate = torch.nn.Linear(hidden_size, 1, bias=False)
 
-        if config.shared_expert_intermediate_size > 0:
+        if shared_expert_intermediate_size > 0:
             self.shared_expert = Qwen3NextMLP(
-                hidden_size=config.hidden_size,
-                intermediate_size=config.shared_expert_intermediate_size,
+                hidden_size=hidden_size,
+                intermediate_size=shared_expert_intermediate_size,
                 hidden_act=config.hidden_act,
                 quant_config=quant_config,
                 reduce_results=False,
@@ -200,8 +247,8 @@ class Qwen3NextSparseMoeBlock(nn.Module):
             gate=self.gate,
             num_experts=self.n_routed_experts,
             top_k=config.num_experts_per_tok,
-            hidden_size=config.hidden_size,
-            intermediate_size=config.moe_intermediate_size,
+            hidden_size=hidden_size,
+            intermediate_size=moe_intermediate_size,
             reduce_results=False,
             renormalize=config.norm_topk_prob,
             quant_config=quant_config,

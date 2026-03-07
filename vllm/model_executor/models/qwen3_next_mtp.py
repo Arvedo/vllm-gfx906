@@ -23,6 +23,7 @@ from vllm.model_executor.models.qwen3_next import (
     Qwen3NextDecoderLayer,
     Qwen3NextRMSNorm,
     QwenNextMixtureOfExperts,
+    _resolve_config_field,
     _resolve_num_experts,
 )
 from vllm.sequence import IntermediateTensors
@@ -53,6 +54,8 @@ class Qwen3NextMultiTokenPredictor(nn.Module):
 
         self.config = config
 
+        hidden_size = _resolve_config_field(config, "hidden_size", model_config)
+
         self.vocab_size = config.vocab_size
 
         self.mtp_start_layer_idx = config.num_hidden_layers
@@ -60,12 +63,12 @@ class Qwen3NextMultiTokenPredictor(nn.Module):
 
         self.embed_tokens = VocabParallelEmbedding(
             self.vocab_size,
-            config.hidden_size,
+            hidden_size,
         )
 
         self.fc = ColumnParallelLinear(
-            self.config.hidden_size * 2,
-            self.config.hidden_size,
+            hidden_size * 2,
+            hidden_size,
             gather_output=True,
             bias=False,
             return_bias=False,
@@ -83,15 +86,15 @@ class Qwen3NextMultiTokenPredictor(nn.Module):
         )
 
         self.make_empty_intermediate_tensors = make_empty_intermediate_tensors_factory(
-            ["hidden_states", "residual"], config.hidden_size
+            ["hidden_states", "residual"], hidden_size
         )
 
-        self.norm = Qwen3NextRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.norm = Qwen3NextRMSNorm(hidden_size, eps=config.rms_norm_eps)
         self.pre_fc_norm_hidden = Qwen3NextRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
+            hidden_size, eps=config.rms_norm_eps
         )
         self.pre_fc_norm_embedding = Qwen3NextRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
+            hidden_size, eps=config.rms_norm_eps
         )
 
     def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
@@ -247,9 +250,12 @@ class Qwen3NextMTP(nn.Module, SupportsPP, QwenNextMixtureOfExperts):
             vllm_config=vllm_config, prefix=maybe_prefix(prefix, "mtp")
         )
 
+        hidden_size = _resolve_config_field(
+            config, "hidden_size", vllm_config.model_config
+        )
         self.lm_head = ParallelLMHead(
             config.vocab_size,
-            config.hidden_size,
+            hidden_size,
             prefix=maybe_prefix(prefix, "lm_head"),
         )
         self.logits_processor = LogitsProcessor(config.vocab_size)

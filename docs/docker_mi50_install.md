@@ -112,10 +112,12 @@ docker-compose up -d --build vllm-mi50
 ```
 
 This works without exporting variables and uses MI50 defaults from `docker-compose.yml`:
-- model: `btbtyler09/Qwen3.5-35B-A3B-GPTQ-4bit`
+- model: `QuantTrio/Qwen3.5-35B-A3B-AWQ`
 - host port: `8010` (container port remains `8000`)
 - `HIP_VISIBLE_DEVICES=4,5`
 - tensor parallel size: `2`
+- `HSA_OVERRIDE_GFX_VERSION=9.0.6`
+- `VLLM_GPU_MEMORY_UTILIZATION` is auto-derived from currently free VRAM when unset, capped at `0.85`
 
 If the first `docker-compose up -d --build vllm-mi50` appears stuck, it is usually still building (legacy v1 builder can be very slow on first build). After the first successful image build, start without rebuild:
 
@@ -136,6 +138,8 @@ After this fix, restart the service with:
 ```bash
 docker compose up -d --force-recreate vllm-mi50
 ```
+
+If the selected GPUs are already partially occupied, the compose entrypoint now prints a preflight summary of free VRAM per visible GPU and automatically lowers `VLLM_GPU_MEMORY_UTILIZATION` before launching vLLM. This prevents the immediate startup failure where desired utilization is higher than currently free memory. It does **not** make an oversized model fit on busy GPUs; if the model still fails later, switch to emptier GPUs, lower `VLLM_TENSOR_PARALLEL_SIZE`, or choose a smaller checkpoint.
 
 ## Runtime defaults set in Dockerfile
 
