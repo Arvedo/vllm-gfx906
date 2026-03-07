@@ -48,6 +48,12 @@ fi
 
 echo "[mi50-preflight] Starting model ${VLLM_MODEL:-QuantTrio/Qwen3.5-35B-A3B-AWQ} with TP=${VLLM_TENSOR_PARALLEL_SIZE:-2} and VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION}"
 
+if [ -n "${VLLM_LIMIT_MM_PER_PROMPT:-}" ]; then
+    LIMIT_MM_PER_PROMPT="${VLLM_LIMIT_MM_PER_PROMPT}"
+else
+    LIMIT_MM_PER_PROMPT='{"image":1,"video":0}'
+fi
+
 exec python3 -m vllm.entrypoints.openai.api_server \
   --host 0.0.0.0 \
   --port 8000 \
@@ -59,5 +65,5 @@ exec python3 -m vllm.entrypoints.openai.api_server \
   --reasoning-parser "${VLLM_REASONING_PARSER:-qwen3}" \
   --enable-auto-tool-choice \
   --tool-call-parser "${VLLM_TOOL_CALL_PARSER:-qwen3_xml}" \
-  --limit-mm-per-prompt "${VLLM_LIMIT_MM_PER_PROMPT:-{\"image\":1,\"video\":0}}" \
+    --limit-mm-per-prompt "${LIMIT_MM_PER_PROMPT}" \
   ${VLLM_EXTRA_ARGS:-}
