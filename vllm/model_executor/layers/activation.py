@@ -22,6 +22,17 @@ from vllm.utils.collection_utils import LazyDict
 logger = init_logger(__name__)
 
 
+def _get_custom_op_or_none(namespace: object, op_name: str):
+    try:
+        return getattr(namespace, op_name)
+    except AttributeError:
+        logger.warning_once(
+            "Custom op `%s` is unavailable; falling back to the native PyTorch implementation.",
+            op_name,
+        )
+        return None
+
+
 @CustomOp.register("fatrelu_and_mul")
 class FatreluAndMul(CustomOp):
     """An activation function for FATReLU.
@@ -39,7 +50,9 @@ class FatreluAndMul(CustomOp):
         super().__init__()
         self.threshold = threshold
         if current_platform.is_cuda_alike():
-            self.op = torch.ops._C.fatrelu_and_mul
+            self.op = _get_custom_op_or_none(torch.ops._C, "fatrelu_and_mul")
+            if self.op is None:
+                self._forward_method = self.forward_native
         elif current_platform.is_cpu():
             self._forward_method = self.forward_native
 
@@ -72,7 +85,9 @@ class SiluAndMul(CustomOp):
     def __init__(self):
         super().__init__()
         if current_platform.is_cuda_alike():
-            self.op = torch.ops._C.silu_and_mul
+            self.op = _get_custom_op_or_none(torch.ops._C, "silu_and_mul")
+            if self.op is None:
+                self._forward_method = self.forward_native
         elif current_platform.is_xpu():
             from vllm._ipex_ops import ipex_ops
 
@@ -115,7 +130,9 @@ class MulAndSilu(CustomOp):
     def __init__(self):
         super().__init__()
         if current_platform.is_cuda_alike():
-            self.op = torch.ops._C.mul_and_silu
+            self.op = _get_custom_op_or_none(torch.ops._C, "mul_and_silu")
+            if self.op is None:
+                self._forward_method = self.forward_native
         elif current_platform.is_xpu():
             from vllm._ipex_ops import ipex_ops
 
@@ -213,9 +230,12 @@ class GeluAndMul(CustomOp):
             raise ValueError(f"Unknown approximate mode: {approximate}")
         if current_platform.is_cuda_alike() or current_platform.is_cpu():
             if approximate == "none":
-                self.op = torch.ops._C.gelu_and_mul
+                self.op = _get_custom_op_or_none(torch.ops._C, "gelu_and_mul")
             elif approximate == "tanh":
-                self.op = torch.ops._C.gelu_tanh_and_mul
+                self.op = _get_custom_op_or_none(torch.ops._C,
+                                                 "gelu_tanh_and_mul")
+            if getattr(self, "op", None) is None:
+                self._forward_method = self.forward_native
         if current_platform.is_rocm() and approximate == "tanh":
             logger.warning_once(
                 "[ROCm] PyTorch's native GELU with tanh approximation is unstable "
