@@ -58,8 +58,11 @@ RUN VLLM_TARGET_DEVICE=rocm \
     SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VLLM=0.0.0 \
     python3 -m pip install --no-build-isolation .
 
-RUN python3 - <<'PY'
+RUN mkdir -p /opt/vllm-runtime
+
+RUN cd /opt/vllm-runtime && python3 - <<'PY'
 import importlib.metadata as m
+import inspect
 
 print('torch', m.version('torch'))
 print('transformers', m.version('transformers'))
@@ -87,8 +90,15 @@ else:
     print('no Triton distribution metadata found among candidates', ', '.join(candidates))
 
 import vllm
+import vllm._C
+import vllm._rocm_C
 print('vllm import ok')
+print('vllm package path', inspect.getfile(vllm))
+print('vllm._C import ok')
+print('vllm._rocm_C import ok')
 PY
+
+WORKDIR /opt/vllm-runtime
 
 EXPOSE 8000
 CMD ["/bin/bash"]

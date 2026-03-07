@@ -54,6 +54,10 @@ else
     LIMIT_MM_PER_PROMPT='{"image":1,"video":0}'
 fi
 
+# Avoid importing the source checkout at /workspace/vllm. We want the installed
+# package from site-packages, which contains the compiled extensions.
+cd /opt/vllm-runtime
+
 exec python3 -m vllm.entrypoints.openai.api_server \
   --host 0.0.0.0 \
   --port 8000 \
