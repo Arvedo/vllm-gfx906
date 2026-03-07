@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Inference-only Qwen3_5 MTP model."""
 
+import inspect
 import typing
 from collections.abc import Callable, Iterable
 
@@ -44,6 +45,18 @@ from .utils import (
 )
 
 logger = init_logger(__name__)
+
+
+def _call_sharded_weight_loader(
+    weight_loader: Callable[..., object],
+    param: torch.nn.Parameter,
+    loaded_weight: torch.Tensor,
+    shard_id: object,
+) -> object:
+    param_count = len(inspect.signature(weight_loader).parameters)
+    if param_count >= 3:
+        return weight_loader(param, loaded_weight, shard_id)
+    return weight_loader(param, loaded_weight)
 
 
 @support_torch_compile(
@@ -231,7 +244,9 @@ class Qwen3_5MultiTokenPredictor(nn.Module):
                     continue
                 param = params_dict[name]
                 weight_loader = param.weight_loader
-                weight_loader(param, loaded_weight, shard_id)
+                _call_sharded_weight_loader(
+                    weight_loader, param, loaded_weight, shard_id
+                )
                 break
             else:
                 is_expert_weight = False

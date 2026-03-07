@@ -142,6 +142,20 @@ from .utils import (
 logger = init_logger(__name__)
 
 
+def _call_sharded_weight_loader(
+    weight_loader: Callable[..., object],
+    param: torch.nn.Parameter,
+    loaded_weight: torch.Tensor,
+    shard_id: object,
+) -> object:
+    """Call weight loaders that may or may not accept a shard id."""
+
+    param_count = len(inspect.signature(weight_loader).parameters)
+    if param_count >= 3:
+        return weight_loader(param, loaded_weight, shard_id)
+    return weight_loader(param, loaded_weight)
+
+
 class Qwen3_5ProcessingInfo(Qwen3VLProcessingInfo):
     def get_hf_config(self):
         return self.ctx.get_hf_config(Qwen3_5Config)
@@ -458,7 +472,9 @@ class Qwen3_5Model(Qwen3NextModel):
                     continue
                 param = params_dict[name]
                 weight_loader = param.weight_loader
-                weight_loader(param, loaded_weight, shard_id)
+                _call_sharded_weight_loader(
+                    weight_loader, param, loaded_weight, shard_id
+                )
                 break
             else:
                 is_expert_weight = False
